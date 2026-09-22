@@ -23,8 +23,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TIKTOK_URL_RE = re.compile(r"https?://[^\s]+", re.IGNORECASE)
-ALLOWED_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"}
+VIDEO_URL_RE = re.compile(r"https?://[^\s]+", re.IGNORECASE)
+ALLOWED_HOSTS = {
+    "tiktok.com", "www.tiktok.com", "m.tiktok.com",
+    "vm.tiktok.com", "vt.tiktok.com",
+    "instagram.com", "www.instagram.com", "m.instagram.com",
+}
 MAX_FILE_BYTES = 49 * 1024 * 1024
 DOWNLOAD_SLOTS = asyncio.Semaphore(2)
 DB_PATH = Path(os.getenv("BOT_DB_PATH", "bot_users.sqlite3"))
@@ -100,8 +104,8 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-def extract_tiktok_url(text: str) -> str | None:
-    match = TIKTOK_URL_RE.search(text or "")
+def extract_video_url(text: str) -> str | None:
+    match = VIDEO_URL_RE.search(text or "")
     if not match:
         return None
 
@@ -109,6 +113,14 @@ def extract_tiktok_url(text: str) -> str | None:
     host = (urlparse(url).hostname or "").lower()
     if host not in ALLOWED_HOSTS and not host.endswith(".tiktok.com"):
         return None
+
+    if host.endswith("instagram.com") and not re.match(
+        r"^/(reel|reels|p|tv)/[^/?#]+",
+        urlparse(url).path,
+        re.IGNORECASE,
+    ):
+        return None
+
     return url
 
 
@@ -129,7 +141,7 @@ def download_video(url: str, folder: str) -> tuple[Path, str]:
     with yt_dlp.YoutubeDL(options) as downloader:
         info = downloader.extract_info(url, download=True)
         path = Path(downloader.prepare_filename(info))
-        title = (info.get("title") or "TikTok video").strip()
+        title = (info.get("title") or "Video").strip()
 
     if not path.exists():
         candidates = [p for p in Path(folder).iterdir() if p.is_file()]
@@ -146,7 +158,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
     if update.message:
         await update.message.reply_text(
-            "أرسل رابط فيديو TikTok عامًا وسأحاول تنزيل النسخة الأصلية المتاحة.\n\n"
+            "أرسل رابط فيديو TikTok أو Reel/منشور فيديو عام من Instagram "
+            "وسأحاول تنزيله.\n\n"
             "استخدم البوت فقط للفيديوهات التي تملكها أو لديك إذن بتنزيلها."
         )
 
@@ -156,9 +169,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not update.message or not update.message.text:
         return
 
-    url = extract_tiktok_url(update.message.text)
+    url = extract_video_url(update.message.text)
     if not url:
-        await update.message.reply_text("أرسل رابط TikTok صحيحًا يبدأ بـ https://")
+        await update.message.reply_text(
+            "أرسل رابط فيديو من TikTok أو Reel/منشور فيديو عام "
+            "من Instagram يبدأ بـ https://"
+        )
         return
 
     status = await update.message.reply_text("جاري تجهيز الفيديو…")
@@ -178,9 +194,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     )
         await status.delete()
     except yt_dlp.utils.DownloadError:
-        logger.exception("TikTok download failed")
+        logger.exception("Video download failed")
         await status.edit_text(
-            "تعذّر تنزيل الفيديو. تأكد أن الرابط عام وصحيح، ثم حدّث yt-dlp وحاول مجددًا."
+            "تعذّر تنزيل الفيديو. تأكد أن الرابط عام وصحيح. "
+            "بعض روابط Instagram تتطلب تسجيل دخول ولا يستطيع البوت تنزيلها."
         )
     except ValueError as exc:
         await status.edit_text(str(exc))

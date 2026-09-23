@@ -109,7 +109,7 @@ def extract_video_url(text: str) -> str | None:
     return url
 
 
-def download_video(url: str, folder: str) -> tuple[Path, str]:
+def download_video(url: str, folder: str) -> Path:
     output_template = str(Path(folder) / "%(id)s.%(ext)s")
     options = {
         "format": "best[ext=mp4]/best",
@@ -126,7 +126,6 @@ def download_video(url: str, folder: str) -> tuple[Path, str]:
     with yt_dlp.YoutubeDL(options) as downloader:
         info = downloader.extract_info(url, download=True)
         path = Path(downloader.prepare_filename(info))
-        title = (info.get("title") or "Video").strip()
 
     if not path.exists():
         candidates = [p for p in Path(folder).iterdir() if p.is_file()]
@@ -136,7 +135,7 @@ def download_video(url: str, folder: str) -> tuple[Path, str]:
 
     if path.stat().st_size > MAX_FILE_BYTES:
         raise ValueError("Ø§ÙÙÙØ¯ÙÙ Ø£ÙØ¨Ø± ÙÙ Ø§ÙØ­Ø¯ Ø§ÙØ°Ù ÙØ³ØªØ·ÙØ¹ Ø§ÙØ¨ÙØª Ø¥Ø±Ø³Ø§ÙÙ.")
-    return path, title[:900]
+    return path
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -164,11 +163,11 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         async with DOWNLOAD_SLOTS:
             with tempfile.TemporaryDirectory(prefix="video_bot_") as temp_dir:
-                video_path, title = await asyncio.to_thread(download_video, url, temp_dir)
+                video_path = await asyncio.to_thread(download_video, url, temp_dir)
                 with video_path.open("rb") as video_file:
                     await update.message.reply_video(
                         video=video_file,
-                        caption=f"{title}\n\nØªÙ Ø§ÙØªÙØ²ÙÙ ÙÙØ§Ø³ØªØ®Ø¯Ø§Ù Ø§ÙÙØµØ±ÙØ­ Ø¨Ù ÙÙØ·.",
+                        caption="ØªÙ ØªÙØ²ÙÙ Ø§ÙÙÙØ¯ÙÙ ÙÙØ§Ø³ØªØ®Ø¯Ø§Ù Ø§ÙÙØµØ±ÙØ­ Ø¨Ù ÙÙØ·.",
                         supports_streaming=True,
                         read_timeout=120,
                         write_timeout=120,

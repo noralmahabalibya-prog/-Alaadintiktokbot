@@ -106,7 +106,7 @@ def extract_video_url(text: str) -> str | None:
         return None
     if host in {"x.com", "www.x.com", "mobile.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"} and not re.match(r"^/(?:[^/]+/status|i/status)/\d+/?$", urlparse(url).path, re.IGNORECASE):
         return None
-    if host in {"threads.net", "www.threads.net", "threads.com", "www.threads.com"} and not re.match(r"^/@[^/]+/post/[^/?#]+/?$", urlparse(url).path, re.IGNORECASE):
+    if host in {"threads.net", "www.threads.net", "threads.com", "www.threads.com"} and not re.match(r"^/(?:@[^/]+/post/[^/?#]+|share/[^/?#]+)/?$", urlparse(url).path, re.IGNORECASE):
         return None
     return url
 

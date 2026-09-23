@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 VIDEO_URL_RE = re.compile(r"https?://[^\s]+", re.IGNORECASE)
-ALLOWED_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com", "instagram.com", "www.instagram.com", "m.instagram.com", "x.com", "www.x.com", "mobile.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"}
+ALLOWED_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com", "instagram.com", "www.instagram.com", "m.instagram.com", "x.com", "www.x.com", "mobile.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com", "facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com", "fb.watch", "threads.net", "www.threads.net", "threads.com", "www.threads.com"}
 MAX_FILE_BYTES = 49 * 1024 * 1024
 DOWNLOAD_SLOTS = asyncio.Semaphore(2)
 # Place this database on a persistent volume when hosting on an ephemeral server.
@@ -106,6 +106,8 @@ def extract_video_url(text: str) -> str | None:
         return None
     if host in {"x.com", "www.x.com", "mobile.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"} and not re.match(r"^/(?:[^/]+/status|i/status)/\d+/?$", urlparse(url).path, re.IGNORECASE):
         return None
+    if host in {"threads.net", "www.threads.net", "threads.com", "www.threads.com"} and not re.match(r"^/@[^/]+/post/[^/?#]+/?$", urlparse(url).path, re.IGNORECASE):
+        return None
     return url
 
 
@@ -142,7 +144,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
     if update.message:
         await update.message.reply_text(
-            "Ø£Ø±Ø³Ù Ø±Ø§Ø¨Ø· ÙÙØ¯ÙÙ TikTok Ø£Ù Instagram Ø£Ù ÙÙØ´ÙØ± ÙÙØ¯ÙÙ Ø¹Ø§Ù ÙÙ X ÙØ³Ø£Ø­Ø§ÙÙ ØªÙØ²ÙÙÙ.\n\n"
+            "Ø£Ø±Ø³Ù Ø±Ø§Ø¨Ø· ÙÙØ¯ÙÙ Ø¹Ø§Ù ÙÙ TikTok Ø£Ù Instagram Ø£Ù X Ø£Ù Facebook Ø£Ù Threads ÙØ³Ø£Ø­Ø§ÙÙ ØªÙØ²ÙÙÙ.\n\n"
             "Ø§Ø³ØªØ®Ø¯Ù Ø§ÙØ¨ÙØª ÙÙØ· ÙÙÙÙØ¯ÙÙÙØ§Øª Ø§ÙØªÙ ØªÙÙÙÙØ§ Ø£Ù ÙØ¯ÙÙ Ø¥Ø°Ù Ø¨ØªÙØ²ÙÙÙØ§."
         )
 
@@ -154,7 +156,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     url = extract_video_url(update.message.text)
     if not url:
-        await update.message.reply_text("Ø£Ø±Ø³Ù Ø±Ø§Ø¨Ø· ÙÙØ¯ÙÙ Ø¹Ø§Ù ÙÙ TikTok Ø£Ù Instagram Ø£Ù ÙÙØ´ÙØ± ÙÙ X ÙØ¨Ø¯Ø£ Ø¨Ù https://")
+        await update.message.reply_text("Ø£Ø±Ø³Ù Ø±Ø§Ø¨Ø· ÙÙØ¯ÙÙ Ø¹Ø§Ù ÙÙ TikTok Ø£Ù Instagram Ø£Ù X Ø£Ù Facebook Ø£Ù Threads ÙØ¨Ø¯Ø£ Ø¨Ù https://")
         return
 
     status = await update.message.reply_text("Ø¬Ø§Ø±Ù ØªØ¬ÙÙØ² Ø§ÙÙÙØ¯ÙÙâ¦")
@@ -176,7 +178,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     except yt_dlp.utils.DownloadError:
         logger.exception("Video download failed")
         await status.edit_text(
-            "ØªØ¹Ø°ÙØ± ØªÙØ²ÙÙ Ø§ÙÙÙØ¯ÙÙ. ØªØ£ÙØ¯ Ø£Ù Ø§ÙØ±Ø§Ø¨Ø· Ø¹Ø§Ù ÙÙØ­ØªÙÙ ÙÙØ¯ÙÙ. Ø¨Ø¹Ø¶ Ø±ÙØ§Ø¨Ø· Instagram ÙX ØªØªØ·ÙØ¨ ØªØ³Ø¬ÙÙ Ø¯Ø®ÙÙ ÙÙØ§ ÙØ³ØªØ·ÙØ¹ Ø§ÙØ¨ÙØª ØªÙØ²ÙÙÙØ§."
+            "ØªØ¹Ø°ÙØ± ØªÙØ²ÙÙ Ø§ÙÙÙØ¯ÙÙ. ØªØ£ÙØ¯ Ø£Ù Ø§ÙØ±Ø§Ø¨Ø· Ø¹Ø§Ù ÙÙØ­ØªÙÙ ÙÙØ¯ÙÙ. Ø¨Ø¹Ø¶ Ø±ÙØ§Ø¨Ø· Instagram ÙX ÙFacebook ÙThreads ØªØªØ·ÙØ¨ ØªØ³Ø¬ÙÙ Ø¯Ø®ÙÙ ÙÙØ§ ÙØ³ØªØ·ÙØ¹ Ø§ÙØ¨ÙØª ØªÙØ²ÙÙÙØ§."
         )
     except ValueError as exc:
         await status.edit_text(str(exc))

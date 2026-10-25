@@ -5,7 +5,9 @@ import os
 import re
 import sqlite3
 import subprocess
+import threading
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
@@ -26,7 +28,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
-BUILD_VERSION = "2026-09-26.3"
+BUILD_VERSION = "2026-10-25.1"
 
 VIDEO_URL_RE = re.compile(r"https?://[^\s]+", re.IGNORECASE)
 ALLOWED_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com", "instagram.com", "www.instagram.com", "m.instagram.com", "x.com", "www.x.com", "mobile.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com", "facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com", "fb.watch", "threads.net", "www.threads.net", "threads.com", "www.threads.com"}
@@ -34,6 +36,29 @@ MAX_FILE_BYTES = 49_000_000
 DOWNLOAD_SLOTS = asyncio.Semaphore(2)
 # Place this database on a persistent volume when hosting on an ephemeral server.
 DB_PATH = Path(os.getenv("BOT_DB_PATH", "bot_users.sqlite3"))
+
+
+# --- Small web server so the free host (Render) keeps the service alive ---
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+def start_health_server() -> None:
+    port = int(os.getenv("PORT", "10000"))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    logger.info("Health server listening on port %s", port)
 
 
 def open_db():
@@ -297,6 +322,8 @@ def main() -> None:
     if not token:
         raise RuntimeError("\u0636\u0639 TELEGRAM_BOT_TOKEN \u062f\u0627\u062e\u0644 \u0645\u0644\u0641 .env")
 
+    start_health_server()
+
     application = Application.builder().token(token).concurrent_updates(4).build()
     # The first group records private users for both commands and ordinary messages.
     application.add_handler(MessageHandler(filters.ALL, remember_user), group=-1)
@@ -305,7 +332,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("version", version))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 
 if __name__ == "__main__":
